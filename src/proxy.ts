@@ -29,6 +29,11 @@ export function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Vercel preview/production URL (no subdomain routing): allow everything
+  if (host.endsWith('.vercel.app')) {
+    return NextResponse.next()
+  }
+
   const subdomain = host.split('.')[0]
 
   switch (subdomain) {

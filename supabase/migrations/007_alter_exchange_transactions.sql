@@ -6,25 +6,33 @@ alter table exchange_transactions
   add column if not exists to_currency   text,
   add column if not exists to_amount     numeric(18,4);
 
--- Backfill existing rows from old columns (if any data exists)
-update exchange_transactions set
-  from_currency = source_currency,
-  from_amount   = source_amount,
-  to_currency   = 'CNY',
-  to_amount     = case when cny_amount > 0 then cny_amount else null end
-where source_currency is not null and cny_amount > 0;
+-- Backfill existing rows from old columns (only if legacy columns still exist)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'exchange_transactions' and column_name = 'source_currency'
+  ) then
+    execute $sql$
+      update exchange_transactions set
+        from_currency = source_currency,
+        from_amount   = source_amount,
+        to_currency   = 'CNY',
+        to_amount     = case when cny_amount > 0 then cny_amount else null end
+      where source_currency is not null and cny_amount > 0;
 
--- Settlements (cny_amount < 0, no source_currency)
-update exchange_transactions set
-  from_currency = 'CNY',
-  from_amount   = abs(cny_amount)
-where cny_amount < 0 and source_currency is null and from_currency is null;
+      update exchange_transactions set
+        from_currency = 'CNY',
+        from_amount   = abs(cny_amount)
+      where cny_amount < 0 and source_currency is null and from_currency is null;
 
--- Initial balance (cny_amount > 0, no source_currency)
-update exchange_transactions set
-  to_currency = 'CNY',
-  to_amount   = cny_amount
-where cny_amount > 0 and source_currency is null and to_currency is null;
+      update exchange_transactions set
+        to_currency = 'CNY',
+        to_amount   = cny_amount
+      where cny_amount > 0 and source_currency is null and to_currency is null;
+    $sql$;
+  end if;
+end $$;
 
 -- Drop old columns
 alter table exchange_transactions

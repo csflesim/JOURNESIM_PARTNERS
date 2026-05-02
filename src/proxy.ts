@@ -29,9 +29,19 @@ export function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Vercel preview/production URL (no subdomain routing): allow everything
+  // Vercel preview/production URL: treat as admin site (rewrite all paths to /admin/*)
+  // Note: this makes the C-end (root /) inaccessible via *.vercel.app — use a real domain for C-end.
   if (host.endsWith('.vercel.app')) {
-    return NextResponse.next()
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/admin', req.url))
+    }
+    if (pathname.startsWith('/api')) {
+      return NextResponse.next()
+    }
+    if (pathname.startsWith('/admin')) {
+      return NextResponse.next()
+    }
+    return NextResponse.rewrite(new URL('/admin' + pathname, req.url))
   }
 
   const subdomain = host.split('.')[0]
